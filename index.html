@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Today · Todo List</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <style>
+      :root {
+        --bg:#f4f1eb; --ink:#202026; --muted:#8b8a92; --paper:#fffdf9; --line:#ebe7df;
+        --accent:#e76745; --accent-strong:#cf5739; --accent-pale:#fff0ea;
+        --sage:#dce9d9; --sage-ink:#486142;
+        --field:#f8f6f1; --field-focus:#fff; --head-a:#fffaf2; --head-b:#fffdf9;
+        --check:#c8c4bd; --chip:#f0ede7; --edge:#ece7de; --ring:#fce7df; --ring-line:#edc8bb;
+        --shadow:0 20px 60px #342b2015; --toast-bg:#26242b; --toast-ink:#f7f5f1;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg:#131217; --ink:#edeae5; --muted:#9b98a3; --paper:#1d1c21; --line:#2d2b33;
+          --accent:#f0876a; --accent-strong:#f79c81; --accent-pale:#3a2520;
+          --sage:#2f3d2c; --sage-ink:#a9c69f;
+          --field:#26242b; --field-focus:#2c2a32; --head-a:#232128; --head-b:#1d1c21;
+          --check:#5a5762; --chip:#2c2a32; --edge:#2a2830; --ring:#3a2520; --ring-line:#63392c;
+          --shadow:0 20px 60px #00000059; --toast-bg:#33313a; --toast-ink:#f7f5f1;
+        }
+      }
+      * { box-sizing:border-box; }
+      [hidden] { display:none !important; }
+      body {
+        min-height:100vh; margin:0; padding:30px 16px; background:var(--bg); color:var(--ink);
+        font-family:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",sans-serif;
+        display:grid; place-items:center;
+      }
+      .app { width:min(100%,710px); background:var(--paper); border:1px solid var(--edge); border-radius:20px; box-shadow:var(--shadow); overflow:hidden; }
+      header { padding:42px 48px 28px; background:linear-gradient(120deg,var(--head-a) 0%,var(--head-b) 72%); border-bottom:1px solid var(--line); }
+      .eyebrow { color:var(--accent); font-size:12px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+      h1 { font:700 clamp(34px,6vw,52px)/1 "Playfair Display",Georgia,"Songti SC",serif; margin:9px 0 13px; letter-spacing:-.04em; }
+      .date { color:var(--muted); margin:0; font-size:14px; }
+      .progress { display:flex; align-items:center; gap:12px; margin-top:20px; }
+      .bar { flex:1; height:6px; background:var(--chip); border-radius:99px; overflow:hidden; }
+      .bar > span { display:block; width:0; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent),#f0a07f); transition:width .35s ease; }
+      .progress-text { color:var(--muted); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+      button { font-family:inherit; font-size:14px; font-weight:600; border:0; cursor:pointer; transition:background .2s, color .2s, transform .2s, opacity .2s; }
+      button:focus-visible, .check:focus-visible, .handle:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+      .composer { display:flex; gap:10px; padding:22px 48px; border-bottom:1px solid var(--line); }
+      .composer input, .edit {
+        min-width:0; flex:1; padding:14px 16px; font:inherit; color:inherit; background:var(--field);
+        border:1px solid transparent; border-radius:10px; outline:0; transition:background .2s, border-color .2s, box-shadow .2s;
+      }
+      .composer input:focus, .edit:focus { background:var(--field-focus); border-color:var(--ring-line); box-shadow:0 0 0 3px var(--ring); }
+      .composer input::placeholder { color:var(--muted); }
+      .add { padding:0 21px; color:#fff; background:var(--accent); border-radius:10px; }
+      .add:hover { background:var(--accent-strong); transform:translateY(-1px); }
+      .add:active { transform:none; }
+
+      main { padding:13px 48px 8px; min-height:240px; }
+      ul { list-style:none; padding:0; margin:0; }
+      li { display:flex; align-items:center; gap:12px; padding:15px 3px; border-bottom:1px solid var(--line); animation:in .25s ease-out; }
+      @keyframes in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+      li.dragging { opacity:.4; }
+
+      .handle { display:inline-flex; align-items:center; flex:0 0 auto; padding:6px 2px; color:var(--muted); font-size:14px; line-height:1; letter-spacing:-3px; opacity:0; cursor:grab; user-select:none; }
+      .handle:active { cursor:grabbing; }
+      li:hover .handle, li:focus-within .handle { opacity:1; }
+
+      .check { appearance:none; width:20px; height:20px; margin:0; flex:0 0 20px; border:1.5px solid var(--check); border-radius:50%; cursor:pointer; display:grid; place-content:center; transition:background .2s, border-color .2s; }
+      .check:hover { border-color:var(--accent); }
+      .check:checked { background:var(--sage); border-color:var(--sage); }
+      .check:checked::after { content:"✓"; font-size:13px; font-weight:bold; color:var(--sage-ink); }
+
+      .task { flex:1; min-width:0; font-size:16px; word-break:break-word; transition:color .2s; cursor:text; }
+      .done .task { color:var(--muted); text-decoration:line-through; text-decoration-color:var(--check); }
+      .edit { padding:9px 12px; font-size:16px; }
+
+      .delete { padding:7px 9px; color:var(--muted); background:transparent; border-radius:7px; opacity:0; }
+      li:hover .delete, .delete:focus-visible { opacity:1; }
+      .delete:hover { color:var(--accent); background:var(--accent-pale); }
+
+      .empty { text-align:center; color:var(--muted); padding:54px 0; font-size:15px; }
+      footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:19px 48px 24px; color:var(--muted); font-size:13px; }
+      .count { font-variant-numeric:tabular-nums; }
+      .filters { display:flex; gap:4px; }
+      .filter { padding:7px 10px; font-size:13px; color:var(--muted); background:transparent; border-radius:7px; }
+      .filter:hover { color:var(--ink); }
+      .filter.active { color:var(--ink); background:var(--chip); }
+      .clear { color:var(--muted); background:transparent; padding:7px 0; font-size:13px; }
+      .clear:hover:not(:disabled) { color:var(--accent); }
+      .clear:disabled { opacity:.4; cursor:default; }
+
+      .toast {
+        position:fixed; left:50%; bottom:26px; z-index:9; display:flex; align-items:center; gap:10px;
+        max-width:min(92vw,440px); padding:12px 14px 12px 18px; border-radius:12px;
+        background:var(--toast-bg); color:var(--toast-ink); font-size:14px; box-shadow:0 14px 38px #0003;
+        opacity:0; transform:translate(-50%,16px); pointer-events:none; transition:opacity .25s, transform .25s;
+      }
+      .toast.show { opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+      .toast .msg { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .toast button { flex:0 0 auto; padding:5px 8px; color:#f0a07f; background:transparent; border-radius:6px; }
+      .toast button:hover { background:#ffffff1f; }
+      .sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+      @media (max-width:540px) {
+        header { padding:32px 25px 24px; }
+        .composer { padding:18px 25px; }
+        main { padding:10px 25px 5px; }
+        footer { padding:16px 25px 20px; flex-wrap:wrap; }
+        .handle, .delete { opacity:1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="app" aria-label="待办清单">
+      <header>
+        <div class="eyebrow">Focus gently</div>
+        <h1>今天，要做什么？</h1>
+        <p class="date" id="date"></p>
+        <div class="progress" id="progress" hidden>
+          <div class="bar" role="progressbar" aria-label="完成进度" id="barWrap"><span id="bar"></span></div>
+          <span class="progress-text" id="progressText">已完成 0 / 0</span>
+        </div>
+      </header>
+
+      <form class="composer" id="form">
+        <input id="taskInput" aria-label="新的待办事项" placeholder="写下一个小目标…" autocomplete="off" />
+        <button class="add" type="submit">添加</button>
+      </form>
+
+      <main>
+        <ul id="list" aria-label="待办事项"></ul>
+        <p class="empty" id="empty">今天还没有安排，慢慢开始吧。</p>
+      </main>
+
+      <footer>
+        <span class="count" id="count">暂无事项</span>
+        <div class="filters">
+          <button class="filter active" type="button" data-filter="all">全部</button>
+          <button class="filter" type="button" data-filter="active">待完成</button>
+          <button class="filter" type="button" data-filter="done">已完成</button>
+        </div>
+        <button class="clear" id="clear" type="button">清除已完成</button>
+      </footer>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span class="msg" id="toastMsg"></span>
+      <button id="undo" type="button">撤销</button>
+    </div>
+    <p class="sr-only" id="live" aria-live="polite"></p>
+
+    <script>
+      const KEY = 'todays-gentle-list';
+      const $ = s => document.querySelector(s);
+      const listEl = $('#list'), input = $('#taskInput'), emptyEl = $('#empty'), countEl = $('#count'),
+            clearBtn = $('#clear'), progressEl = $('#progress'), barEl = $('#bar'), barWrap = $('#barWrap'),
+            progressText = $('#progressText'), toastEl = $('#toast'), toastMsg = $('#toastMsg'), liveEl = $('#live');
+
+      const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      const seed = () => ([
+        { id: uid(), text: '为今天定一个最重要的目标', done: false },
+        { id: uid(), text: '留出十分钟，什么也不做', done: true }
+      ]);
+
+      let tasks = load();
+      let filter = 'all';
+      let lastAction = null;   // 上一份快照，用于撤销删除 / 清除
+      let toastTimer = 0;
+      let dragId = null;
+
+      /* ---------- 数据 ---------- */
+      function load() {
+        try {
+          const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+          if (!Array.isArray(raw)) return seed();
+          return raw
+            .filter(t => t && typeof t.text === 'string' && t.text.trim())
+            .map(t => ({ id: String(t.id ?? uid()), text: t.text.trim(), done: !!t.done }));
+        } catch { return seed(); }
+      }
+      function save() { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch {} }
+
+      /* ---------- 渲染 ---------- */
+      const shown = () =>
+        filter === 'done' ? tasks.filter(t => t.done)
+        : filter === 'active' ? tasks.filter(t => !t.done)
+        : tasks;
+
+      function render() {
+        const items = shown();
+        listEl.innerHTML = items.map(t => `
+          <li class="${t.done ? 'done' : ''}" data-id="${t.id}">
+            <span class="handle" role="button" tabindex="0" aria-label="拖动排序" title="拖动排序（Alt + ↑/↓）">⠿</span>
+            <input class="check" type="checkbox" ${t.done ? 'checked' : ''} data-id="${t.id}" />
+            <span class="task" title="双击编辑"></span>
+            <button class="delete" type="button" data-delete="${t.id}" title="删除">✕</button>
+          </li>`).join('');
+
+        items.forEach((t, i) => {
+          const li = listEl.children[i];
+          li.querySelector('.task').textContent = t.text;
+          li.querySelector('.check').setAttribute('aria-label', `标记完成：${t.text}`);
+          li.querySelector('.delete').setAttribute('aria-label', `删除：${t.text}`);
+        });
+
+        emptyEl.textContent = filter === 'done' ? '还没有完成的事项。'
+          : filter === 'active' ? '待办都清空了，去休息一下。'
+          : '今天还没有安排，慢慢开始吧。';
+        emptyEl.hidden = items.length !== 0;
+
+        const doneCount = tasks.filter(t => t.done).length;
+        countEl.textContent = tasks.length ? `${tasks.length - doneCount} 项待完成 · 共 ${tasks.length} 项` : '暂无事项';
+
+        progressEl.hidden = tasks.length === 0;
+        const pct = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
+        barEl.style.width = `${pct}%`;
+        barWrap.setAttribute('aria-valuenow', String(pct));
+        barWrap.setAttribute('aria-valuemin', '0');
+        barWrap.setAttribute('aria-valuemax', '100');
+        progressText.textContent = `已完成 ${doneCount} / ${tasks.length}`;
+
+        clearBtn.disabled = doneCount === 0;
+        document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+      }
+
+      const announce = msg => { liveEl.textContent = msg; };
+      const focusIn = (id, sel) => {
+        const el = listEl.querySelector(`li[data-id="${id}"] ${sel}`);
+        if (el) el.focus();
+      };
+
+      /* ---------- 撤销 toast ---------- */
+      function snapshot() { lastAction = tasks.map(t => ({ ...t })); }
+      function showToast(message) {
+        toastMsg.textContent = message;
+        toastEl.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(hideToast, 5000);
+      }
+      function hideToast() {
+        clearTimeout(toastTimer);
+        toastEl.classList.remove('show');
+        lastAction = null;
+      }
+      $('#undo').addEventListener('click', () => {
+        if (!lastAction) return;
+        tasks = lastAction;
+        hideToast();
+        save(); render();
+        announce('已撤销上一步操作');
+      });
+
+      /* ---------- 操作 ---------- */
+      function startEdit(li, task) {
+        if (li.querySelector('.edit')) return;
+        const span = li.querySelector('.task');
+        const field = document.createElement('input');
+        field.className = 'edit';
+        field.value = task.text;
+        field.setAttribute('aria-label', '编辑事项');
+        span.replaceWith(field);
+        field.focus();
+        field.setSelectionRange(field.value.length, field.value.length);
+
+        let settled = false;
+        const commit = keep => {
+          if (settled) return;
+          settled = true;
+          const next = field.value.trim();
+          if (keep && next && next !== task.text) {
+            task.text = next;
+            save();
+            announce(`已更新：${next}`);
+          }
+          render();
+          focusIn(task.id, '.task');
+        };
+        field.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+          else if (e.key === 'Escape') { e.preventDefault(); commit(false); }
+        });
+        field.addEventListener('blur', () => commit(true));
+      }
+
+      function removeTask(id) {
+        const i = tasks.findIndex(t => t.id === id);
+        if (i < 0) return;
+        snapshot();
+        const [gone] = tasks.splice(i, 1);
+        save(); render();
+        showToast(`已删除「${gone.text}」`);
+        announce(`已删除：${gone.text}`);
+      }
+
+      function moveTask(id, delta) {
+        const i = tasks.findIndex(t => t.id === id);
+        const j = i + delta;
+        if (i < 0 || j < 0 || j >= tasks.length) return;
+        [tasks[i], tasks[j]] = [tasks[j], tasks[i]];
+        save(); render();
+      }
+
+      /* 拖动结束后，把可见项按新顺序写回原来的位置槽 */
+      function syncOrder() {
+        const domIds = [...listEl.children].map(li => li.dataset.id);
+        const slots = [];
+        tasks.forEach((t, i) => { if (domIds.includes(t.id)) slots.push(i); });
+        if (slots.length !== domIds.length) return;
+        const byId = new Map(tasks.map(t => [t.id, t]));
+        const next = tasks.slice();
+        domIds.forEach((id, k) => { next[slots[k]] = byId.get(id); });
+        tasks = next;
+      }
+
+      /* ---------- 事件 ---------- */
+      $('#date').textContent = new Intl.DateTimeFormat('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+
+      $('#form').addEventListener('submit', e => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text) return;
+        tasks.unshift({ id: uid(), text, done: false });
+        input.value = '';
+        save(); render();
+        announce(`已添加：${text}`);
+      });
+
+      listEl.addEventListener('change', e => {
+        const box = e.target.closest('.check');
+        if (!box) return;
+        const task = tasks.find(t => t.id === box.dataset.id);
+        if (!task) return;
+        task.done = box.checked;
+        save(); render();
+        focusIn(task.id, '.check');
+        announce(`${task.text}：${task.done ? '已完成' : '恢复待完成'}`);
+      });
+
+      listEl.addEventListener('click', e => {
+        const btn = e.target.closest('.delete');
+        if (btn) removeTask(btn.dataset.delete);
+      });
+
+      listEl.addEventListener('dblclick', e => {
+        const span = e.target.closest('.task');
+        if (!span) return;
+        const li = span.closest('li');
+        const task = tasks.find(t => t.id === li.dataset.id);
+        if (task) startEdit(li, task);
+      });
+
+      listEl.addEventListener('keydown', e => {
+        const handle = e.target.closest('.handle');
+        if (!handle || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault();
+        const id = handle.closest('li').dataset.id;
+        moveTask(id, e.key === 'ArrowUp' ? -1 : 1);
+        focusIn(id, '.handle');
+      });
+
+      /* 拖动排序：按住左侧手柄时才允许拖整行 */
+      listEl.addEventListener('mousedown', e => {
+        const handle = e.target.closest('.handle');
+        if (handle) handle.closest('li').draggable = true;
+      });
+      listEl.addEventListener('dragstart', e => {
+        const li = e.target.closest('li');
+        if (!li || !li.draggable) { e.preventDefault(); return; }
+        dragId = li.dataset.id;
+        li.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', dragId); } catch {}
+      });
+      listEl.addEventListener('dragover', e => {
+        if (!dragId) return;
+        const li = e.target.closest('li');
+        if (!li) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const dragged = listEl.querySelector('.dragging');
+        if (!dragged || dragged === li) return;
+        const r = li.getBoundingClientRect();
+        listEl.insertBefore(dragged, e.clientY - r.top > r.height / 2 ? li.nextElementSibling : li);
+      });
+      listEl.addEventListener('drop', e => e.preventDefault());
+      listEl.addEventListener('dragend', e => {
+        const li = e.target.closest('li');
+        if (li) { li.draggable = false; li.classList.remove('dragging'); }
+        if (!dragId) return;
+        dragId = null;
+        syncOrder(); save(); render();
+        announce('已调整顺序');
+      });
+      listEl.addEventListener('pointerup', () => {
+        listEl.querySelectorAll('li[draggable="true"]').forEach(li => { li.draggable = false; });
+      });
+
+      document.querySelector('.filters').addEventListener('click', e => {
+        const btn = e.target.closest('.filter');
+        if (!btn) return;
+        filter = btn.dataset.filter;
+        render();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        const removed = tasks.filter(t => t.done).length;
+        if (!removed) return;
+        snapshot();
+        tasks = tasks.filter(t => !t.done);
+        save(); render();
+        showToast(`已清除 ${removed} 项已完成`);
+        announce(`已清除 ${removed} 项已完成`);
+      });
+
+      input.addEventListener('keydown', e => { if (e.key === 'Escape') input.blur(); });
+      document.addEventListener('keydown', e => {
+        const el = document.activeElement;
+        const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+        if (e.key === '/' && !typing) { e.preventDefault(); input.focus(); }
+      });
+
+      render();
+    </script>
+  </body>
+</html>
